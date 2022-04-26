@@ -12,17 +12,12 @@ from typing import Any, Optional
 from sqlalchemy import tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sqlakeyset.columns import OC, find_order_key, parse_ob_clause
-from sqlakeyset.results import Page, Paging
-from sqlakeyset.serial import InvalidPage
+from aio_sqlakeyset.columns import OC, find_order_key, parse_ob_clause
+from aio_sqlakeyset.results import Page, Paging
+from aio_sqlakeyset.serial import InvalidPage
 
 
-def get_db() -> AsyncSession:
-    # TODO: Integration is required here, to get the DB session.
-    raise NotImplementedError
-
-
-def where_condition_for_page(ordering_columns: list[OC], place: tuple[Any]):
+def where_condition_for_page(ordering_columns: list[OC], place: tuple[Any], db: AsyncSession):
     """
     Construct the SQL condition required to restrict a selectable to the desired page.
 
@@ -33,8 +28,6 @@ def where_condition_for_page(ordering_columns: list[OC], place: tuple[Any]):
     Raises:
         InvalidPage: If `place` does not correspond to the given OCs.
     """
-    db = get_db()
-
     if len(ordering_columns) != len(place):
         raise InvalidPage("Page marker has different column count to query's order clause")
 
@@ -50,7 +43,13 @@ def where_condition_for_page(ordering_columns: list[OC], place: tuple[Any]):
     return condition
 
 
-async def get_page(selectable, per_page: int, place: Optional[tuple[Any]], backwards: bool) -> Page:
+async def get_page(
+        selectable,
+        per_page: int,
+        db: AsyncSession,
+        place: Optional[tuple[Any]] = None,
+        backwards: bool = False
+    ) -> Page:
     """
     Get a page from an SQLAlchemy Core selectable.
 
@@ -63,8 +62,6 @@ async def get_page(selectable, per_page: int, place: Optional[tuple[Any]], backw
     Returns:
         The result page.
     """
-    db = get_db()
-
     # Build a list of ordering columns (ocols) in the form of `MappedOrderColumn` objects.
     order_cols = parse_ob_clause(selectable, backwards)
     mapped_ocols = [find_order_key(ocol, selectable.column_descriptions) for ocol in order_cols]
@@ -79,7 +76,7 @@ async def get_page(selectable, per_page: int, place: Optional[tuple[Any]], backw
 
     if place:
         # Prepare the condition for selecting a specific page.
-        condition = where_condition_for_page(order_cols, place)
+        condition = where_condition_for_page(order_cols, place, db)
 
         # If there is at least one GROUP BY clause, we have an aggregate query.
         # In this case, the paging condition is applied AFTER aggregation. To do so, we must use HAVING and not FILTER.

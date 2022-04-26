@@ -3,7 +3,7 @@ import base64
 import csv
 from typing import Any, Optional
 
-from sqlakeyset.serial import BadBookmark, Serial
+from aio_sqlakeyset.serial import BadBookmark, Serial
 
 SERIALIZER_SETTINGS = {
     "lineterminator": "",
@@ -14,9 +14,6 @@ SERIALIZER_SETTINGS = {
 }
 
 s = Serial(**SERIALIZER_SETTINGS)
-
-
-
 
 def serialize_bookmark(marker: tuple[tuple[Any], bool]) -> str:
     """
@@ -166,7 +163,7 @@ class Paging:
             self.rows.reverse()
             four.reverse()
 
-        self.before, self.first, self.last, self.beyond = four
+        self._previous, self._first, self._last, self._next = four
 
     @property
     def has_next(self):
@@ -174,7 +171,7 @@ class Paging:
         Boolean flagging whether there are more rows after this page (in the
         original query order).
         """
-        return bool(self.beyond)
+        return bool(self._next)
 
     @property
     def has_previous(self):
@@ -182,35 +179,33 @@ class Paging:
         Boolean flagging whether there are more rows before this page (in the
         original query order).
         """
-        return bool(self.before)
+        return bool(self._previous)
 
     @property
-    def next(self):
+    def last(self):
         """Marker for the next page (in the original query order)."""
-        return (self.last or self.before), False
+        return self._last, False
+
+    @property
+    def first(self):
+        """Marker for the previous page (in the original query order)."""
+        return self._first, True
 
     @property
     def previous(self):
-        """Marker for the previous page (in the original query order)."""
-        return (self.first or self.beyond), True
+        return self._previous, True
 
     @property
-    def current_forwards(self):
-        """Marker for the current page in forwards direction."""
-        return self.before, False
-
-    @property
-    def current_backwards(self):
-        """Marker for the current page in backwards direction."""
-        return self.beyond, True
+    def next(self):
+        return self._next, False
 
     @property
     def current(self):
         """Marker for the current page in the current paging direction."""
         if self.backwards:
-            return self.current_backwards
+            return self.previous
         else:
-            return self.current_forwards
+            return self.next
 
     @property
     def current_opposite(self):
@@ -219,9 +214,9 @@ class Paging:
         paging direction.
         """
         if self.backwards:
-            return self.current_forwards
+            return self.next
         else:
-            return self.current_backwards
+            return self.previous
 
     @property
     def further(self):
@@ -251,10 +246,14 @@ class Paging:
         return len(self.rows) == self.per_page
 
     def __getattr__(self, name):
+        """Name is one of form bookmark_attr, where attr is one of previous, first, last, next"""
         prefix = "bookmark_"
-        if name.startswith(prefix):
-            _, attname = name.split(prefix, 1)
-            x = getattr(self, attname)
-            return serialize_bookmark(x)
+        if not name.startswith(prefix):
+            raise AttributeError("Name must start with bookmark_")
+        _, attr = name.split(prefix, 1)
+        return serialize_bookmark(getattr(self, attr))
 
-        raise AttributeError
+    def get_place(self, bookmark):
+        marker = unserialize_bookmark(bookmark)
+        place, _ = marker
+        return tuple(place)

@@ -8,7 +8,7 @@ import datetime
 import pytz
 
 from pytest import raises
-from sqlakeyset.serial import (
+from aio_sqlakeyset.serial import (
     Serial,
     PageSerializationError,
     BadBookmark,

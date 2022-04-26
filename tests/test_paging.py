@@ -38,7 +38,7 @@ except ImportError:
 
 from sqlalchemy_utils import ArrowType
 
-from sqlakeyset import (
+from aio_sqlakeyset import (
     get_page,
     select_page,
     serialize_bookmark,
@@ -46,8 +46,8 @@ from sqlakeyset import (
     custom_bookmark_type,
     InvalidPage,
 )
-from sqlakeyset.paging import process_args
-from sqlakeyset.columns import OC
+from aio_sqlakeyset.paging import process_args
+from aio_sqlakeyset.columns import OC
 
 warnings.simplefilter("error")
 

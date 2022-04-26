@@ -5,8 +5,8 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql.expression import nullslast
 from sqlalchemy.sql.operators import asc_op  # , desc_op
 
-from sqlakeyset import Page, Paging, serialize_bookmark
-from sqlakeyset.columns import (
+from aio_sqlakeyset import Page, Paging, serialize_bookmark
+from aio_sqlakeyset.columns import (
     OC,
     derive_order_key,
     AppendedColumn,
