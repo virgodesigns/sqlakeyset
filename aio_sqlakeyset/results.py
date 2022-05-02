@@ -123,7 +123,6 @@ class Paging:
         get_marker=None,
         markers=None,
     ):
-
         self.original_rows = rows
 
         if get_marker:
@@ -157,6 +156,7 @@ class Paging:
         else:
             self.marker_nplus1 = None
 
+        self.markers = [marker(idx) for idx in range(len(rows))]
         four = [self.marker_0, self.marker_1, self.marker_n, self.marker_nplus1]
 
         if backwards:
@@ -245,13 +245,25 @@ class Paging:
         """
         return len(self.rows) == self.per_page
 
-    def __getattr__(self, name):
-        """Name is one of form bookmark_attr, where attr is one of previous, first, last, next"""
-        prefix = "bookmark_"
-        if not name.startswith(prefix):
-            raise AttributeError("Name must start with bookmark_")
-        _, attr = name.split(prefix, 1)
-        return serialize_bookmark(getattr(self, attr))
+    @property
+    def all_bookmarks(self):
+        return [serialize_bookmark(((marker), False)) for marker in self.markers]
+
+    @property
+    def bookmark_first(self):
+        return serialize_bookmark(self.first)
+
+    @property
+    def bookmark_last(self):
+        return serialize_bookmark(self.last)
+
+    @property
+    def bookmark_previous(self):
+        return serialize_bookmark(self.previous)
+
+    @property
+    def bookmark_next(self):
+        return serialize_bookmark(self.next)
 
     def get_place(self, bookmark):
         marker = unserialize_bookmark(bookmark)
