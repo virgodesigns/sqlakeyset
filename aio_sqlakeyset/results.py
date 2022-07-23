@@ -1,8 +1,9 @@
 """Paging data structures and bookmark handling."""
 import base64
 import csv
-from typing import Any, Optional
+from typing import Any, Callable, List, Optional, Tuple
 
+from aio_sqlakeyset.columns import OC
 from aio_sqlakeyset.serial import BadBookmark, Serial
 
 SERIALIZER_SETTINGS = {
@@ -14,6 +15,7 @@ SERIALIZER_SETTINGS = {
 }
 
 s = Serial(**SERIALIZER_SETTINGS)
+
 
 def serialize_bookmark(marker: tuple[tuple[Any], bool]) -> str:
     """
@@ -33,7 +35,7 @@ def serialize_bookmark(marker: tuple[tuple[Any], bool]) -> str:
     return base64.b64encode(full_string.encode()).decode()
 
 
-def unserialize_bookmark(bookmark: Optional[str]) -> tuple[Optional[tuple[Any]], bool]:
+def unserialize_bookmark(bookmark: Optional[str]) -> Tuple[Optional[List[Any]], bool]:
     """
     Deserialize a bookmark string to a place marker.
 
@@ -54,7 +56,9 @@ def unserialize_bookmark(bookmark: Optional[str]) -> tuple[Optional[tuple[Any]],
     direction = decoded[0]
 
     if direction not in (">", "<"):
-        raise BadBookmark("Malformed bookmark string: doesn't start with a direction marker")
+        raise BadBookmark(
+            "Malformed bookmark string: doesn't start with a direction marker"
+        )
 
     backwards = direction == "<"
     cells = s.unserialize_values(decoded[1:])  # might raise BadBookmark
@@ -115,14 +119,17 @@ class Paging:
 
     def __init__(
         self,
-        rows,
-        per_page,
-        ocols,
-        backwards,
-        current_marker,
-        get_marker=None,
-        markers=None,
+        rows: List,
+        per_page: int,
+        ocols: List[OC],
+        backwards: bool,
+        current_marker: Optional[tuple],
+        get_marker: Optional[Callable] = None,
+        markers: Optional[List[tuple]] = None,
     ):
+        if markers is None:
+            markers = []
+
         self.original_rows = rows
 
         if get_marker:
@@ -227,7 +234,7 @@ class Paging:
             return self.next
 
     @property
-    def has_further(self):
+    def has_further(self) -> bool:
         """
         Boolean flagging whether there are more rows before this page in the
         current paging direction.
@@ -238,7 +245,7 @@ class Paging:
             return self.has_next
 
     @property
-    def is_full(self):
+    def is_full(self) -> bool:
         """
         Boolean flagging whether this page contains as many rows as were
         requested in ``per_page``.
@@ -246,26 +253,28 @@ class Paging:
         return len(self.rows) == self.per_page
 
     @property
-    def all_bookmarks(self):
+    def all_bookmarks(self) -> List[str]:
         return [serialize_bookmark(((marker), False)) for marker in self.markers]
 
     @property
-    def bookmark_first(self):
+    def bookmark_first(self) -> str:
         return serialize_bookmark(self.first)
 
     @property
-    def bookmark_last(self):
+    def bookmark_last(self) -> str:
         return serialize_bookmark(self.last)
 
     @property
-    def bookmark_previous(self):
+    def bookmark_previous(self) -> str:
         return serialize_bookmark(self.previous)
 
     @property
-    def bookmark_next(self):
+    def bookmark_next(self) -> str:
         return serialize_bookmark(self.next)
 
-    def get_place(self, bookmark):
+    def get_place(self, bookmark) -> tuple:
         marker = unserialize_bookmark(bookmark)
         place, _ = marker
+        if not place:
+            return tuple()
         return tuple(place)

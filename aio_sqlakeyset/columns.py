@@ -3,12 +3,14 @@ Classes and supporting functions to manipulate ordering columns and extract
 keyset markers from query results.
 """
 from copy import copy
+from typing import List, Optional, Union
 from warnings import warn
 
-import sqlalchemy
 from sqlalchemy import asc, column
+from sqlalchemy.exc import ArgumentError
 from sqlalchemy.orm import Bundle, Mapper, class_mapper
 from sqlalchemy.orm.attributes import QueryableAttribute
+from sqlalchemy.orm.exc import UnmappedColumnError
 from sqlalchemy.sql.elements import ClauseList, Label, _label_reference
 from sqlalchemy.sql.expression import ColumnElement
 from sqlalchemy.sql.operators import asc_op, desc_op, nullsfirst_op, nullslast_op
@@ -155,7 +157,7 @@ class OC:
         # If this OC is a column with a custom type, apply the custom
         # preprocessing to the comparsion value:
         try:
-            value = compval.type.bind_processor(dialect)(value)
+            value = compval.type.bind_processor(dialect)(value)  # type: ignore
         except (TypeError, AttributeError):
             pass
         if self.is_ascending:
@@ -291,7 +293,7 @@ class MappedOrderColumn:
     ``extra_column`` will be set.
     """
 
-    def __init__(self, oc):
+    def __init__(self, oc: OC):
         self.oc = oc
         self.extra_column = None
         """An extra SQLAlchemy ORM entity that this ordering column needs to
@@ -375,7 +377,7 @@ class AppendedColumn(MappedOrderColumn):
             AppendedColumn._counter += 1
             name = f"_sqlakeyset_oc_{AppendedColumn._counter}"
         self.name = name
-        self.extra_column = self.oc.comparable_value.label(self.name)
+        self.extra_column = self.oc.comparable_value.label(self.name)  # type: ignore
 
     def get_from_row(self, row):
         return getattr(row, self.name)
@@ -389,7 +391,9 @@ class AppendedColumn(MappedOrderColumn):
         return f"Appended({self.oc!r})"
 
 
-def derive_order_key(ocol, desc, index):
+def derive_order_key(
+    ocol: OC, desc: Union[ColumnElement, dict], index: int, strip_label: bool = False
+) -> Optional[MappedOrderColumn]:
     """
     Attempt to derive the value of `ocol` from a query column.
 
@@ -416,7 +420,7 @@ def derive_order_key(ocol, desc, index):
 
     try:
         is_a_table = bool(entity == expr)
-    except (sqlalchemy.exc.ArgumentError, TypeError):
+    except (ArgumentError, TypeError):
         is_a_table = False
 
     if isinstance(expr, Mapper) and expr.class_ == entity:
@@ -427,7 +431,7 @@ def derive_order_key(ocol, desc, index):
         try:
             prop = mapper.get_property_by_column(ocol.element)
             return AttributeColumn(ocol, index, prop.key)
-        except sqlalchemy.orm.exc.UnmappedColumnError:
+        except UnmappedColumnError:
             pass
 
     # is an attribute of some kind
@@ -451,11 +455,25 @@ def derive_order_key(ocol, desc, index):
     try:
         if ocol.quoted_full_name == OC(expr).full_name:
             return DirectColumn(ocol, index)
-    except sqlalchemy.exc.ArgumentError:
+    except ArgumentError:
         pass
 
+    if isinstance(expr, Label) and ocol.name == expr.name:
+        if f"{expr._element.table.name}.{expr._element.name}" == OC(expr).full_name:
+            order_func = _get_order_direction(ocol.uo) or asc
+            if strip_label:
+                return DirectColumn(OC(order_func(expr.element)), index)
+            else:
+                return DirectColumn(ocol, index)
 
-def find_order_key(ocol, column_descriptions):
+    return None
+
+
+def find_order_key(
+    ocol: OC,
+    column_descriptions: List[Union[ColumnElement, dict]],
+    strip_label: bool = False,
+) -> MappedOrderColumn:
     """
     Return a :class:`MappedOrderColumn` describing how to populate the
     ordering column `ocol` from a query returning columns described by
@@ -467,7 +485,7 @@ def find_order_key(ocol, column_descriptions):
     :returns: A :class:`MappedOrderColumn` wrapping `ocol`.
     """
     for index, desc in enumerate(column_descriptions):
-        ok = derive_order_key(ocol, desc, index)
+        ok = derive_order_key(ocol, desc, index, strip_label)
         if ok is not None:
             return ok
 

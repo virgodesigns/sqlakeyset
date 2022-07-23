@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "aio_sqlakeyset"
-version = "1.0"
+version = "1.2.1"
 authors = [ "Robert Lechte <robertlechte@gmail.com>",]
 license = "Unlicense"
 description = "offset-free paging for sqlalchemy"
@@ -25,6 +25,8 @@ pytz = "*"
 black = { version = ">=19.10b0", python=">=3.6" }
 sqlalchemy_utils = "*"
 arrow = "*"
+sqlalchemy2-stubs = "^0.0.2-alpha.24"
+pyright = "1.1.262"
 
 [tool.isort]
 multi_line_output = 3
