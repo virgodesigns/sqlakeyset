@@ -167,6 +167,7 @@ class Paging:
         four = [self.marker_0, self.marker_1, self.marker_n, self.marker_nplus1]
 
         if backwards:
+            self.markers.reverse()
             self.rows.reverse()
             four.reverse()
 
